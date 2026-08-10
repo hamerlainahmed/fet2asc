@@ -1,0 +1,46 @@
+{
+  "name": "fet2asc",
+  "version": "1.2.0",
+  "description": "Convert FET timetables to aSc timetables XML",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "electron-updater": "^6.1.4"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.fet2asc.app",
+    "productName": "FET to aSc",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YourUsername",
+        "repo": "fet2asc"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "ia32"
+          ]
+        }
+      ]
+    }
+  }
+}
