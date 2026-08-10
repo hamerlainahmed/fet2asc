@@ -409,12 +409,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (mappingInstructions) mappingInstructions.textContent = "قم بربط أيام ملف FET بأيام aSc والفترات (صباحي/مسائي):";
 
             const ascDays = [
-                { val: 0, label: "الأحد (DIM)" },
-                { val: 1, label: "الإثنين (LUN)" },
-                { val: 2, label: "الثلاثاء (MAR)" },
-                { val: 3, label: "الأربعاء (MER)" },
-                { val: 4, label: "الخميس (JEU)" },
-                { val: 5, label: "السبت (SAM)" }
+                { val: 0, label: "السبت (SAM)", match: ['سبت', 'sam'] },
+                { val: 1, label: "الأحد (DIM)", match: ['أحد', 'احد', 'dim'] },
+                { val: 2, label: "الإثنين (LUN)", match: ['إثنين', 'اثنين', 'lun'] },
+                { val: 3, label: "الثلاثاء (MAR)", match: ['ثلاثاء', 'mar'] },
+                { val: 4, label: "الأربعاء (MER)", match: ['أربعاء', 'اربعاء', 'mer'] },
+                { val: 5, label: "الخميس (JEU)", match: ['خميس', 'jeu'] }
             ];
 
             parsedData.uniqueFetDays.forEach(fetDay => {
@@ -423,13 +423,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const longName = parsedData.dayNamesMap ? (parsedData.dayNamesMap[fetDay] || fetDay) : fetDay;
                 const searchStr = longName + " " + fetDay;
+                const searchStrLower = searchStr.toLowerCase();
 
                 // Try to guess default mapping
-                let defaultDay = 0;
-                if (searchStr.includes('إثنين') || searchStr.includes('اثنين')) defaultDay = 1;
-                else if (searchStr.includes('ثلاثاء')) defaultDay = 2;
-                else if (searchStr.includes('أربعاء') || searchStr.includes('اربعاء')) defaultDay = 3;
-                else if (searchStr.includes('خميس')) defaultDay = 4;
+                let defaultDay = 1; // Default to Sunday
+                for (const d of ascDays) {
+                    if (d.match.some(k => searchStrLower.includes(k))) {
+                        defaultDay = d.val;
+                        break;
+                    }
+                }
 
                 let defaultShift = (searchStr.includes(' م') || searchStr.endsWith('م') || searchStr.includes('مساء')) ? 1 : 0;
 
@@ -544,8 +547,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 xml += `<day day="${i}" short="J${i + 1}" name="${name}"/>\n`;
             }
         } else {
-            const dayNames = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "السبت"];
-            const dayShorts = ["DIM", "LUN", "MAR", "MER", "JEU", "SAM"];
+            const dayNames = ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
+            const dayShorts = ["SAM", "DIM", "LUN", "MAR", "MER", "JEU"];
             for (let i = 0; i < 6; i++) {
                 xml += `<day day="${i}" short="${dayShorts[i]}" name="${dayNames[i]}"/>\n`;
             }
