@@ -1,6 +1,6 @@
 {
   "name": "fet2asc",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Convert FET timetables to aSc timetables XML",
   "main": "main.js",
   "scripts": {
@@ -22,7 +22,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "YourUsername",
+        "owner": "hamerlainahmed",
         "repo": "fet2asc"
       }
     ],

@@ -12,11 +12,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const mappingInstructions = document.getElementById('mapping-instructions');
     const exportBtn = document.getElementById('export-btn');
     const halfDaysToggle = document.getElementById('half-days-toggle');
+    
+    const modeFet2Asc = document.getElementById('mode-fet2asc');
+    const modeAsc2Fet = document.getElementById('mode-asc2fet');
+    const dropZoneText = document.getElementById('drop-zone-text');
+    const fileUploadLabel = document.getElementById('file-upload-label');
 
     let generatedXml = '';
     let originalFileName = '';
     
     let parsedData = null; // Store data temporarily before export
+    let currentMode = 'fet2asc'; // 'fet2asc' or 'asc2fet'
+    
+    // Mode Selection Logic
+    function updateModeUI() {
+        if (modeFet2Asc.checked) {
+            currentMode = 'fet2asc';
+            dropZoneText.textContent = "اسحب وأفلت ملف FET هنا";
+            fileUploadLabel.textContent = "اختر ملف FET";
+            fileInput.accept = ".fet";
+        } else {
+            currentMode = 'asc2fet';
+            dropZoneText.textContent = "اسحب وأفلت ملف aSc XML هنا";
+            fileUploadLabel.textContent = "اختر ملف XML";
+            fileInput.accept = ".xml";
+        }
+        hideAllCards();
+    }
+    
+    if (modeFet2Asc && modeAsc2Fet) {
+        modeFet2Asc.addEventListener('change', updateModeUI);
+        modeAsc2Fet.addEventListener('change', updateModeUI);
+    }
 
     // Drag and Drop Events
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -54,8 +81,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (files.length === 0) return;
         const file = files[0];
         
-        if (!file.name.toLowerCase().endsWith('.fet') && !file.name.toLowerCase().endsWith('.xml')) {
-            showError("الرجاء اختيار ملف بصيغة FET أو XML صالح.");
+        if (currentMode === 'fet2asc' && !file.name.toLowerCase().endsWith('.fet')) {
+            showError("الرجاء اختيار ملف بصيغة FET صالح.");
+            return;
+        }
+        if (currentMode === 'asc2fet' && !file.name.toLowerCase().endsWith('.xml')) {
+            showError("الرجاء اختيار ملف aSc XML صالح.");
             return;
         }
 
@@ -67,10 +98,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                parseFET(e.target.result);
+                if (currentMode === 'fet2asc') {
+                    parseFET(e.target.result);
+                } else {
+                    parseAscXml(e.target.result);
+                }
             } catch (error) {
                 console.error(error);
-                showError("حدث خطأ أثناء تحليل الملف. تأكد من أنه ملف FET صالح.");
+                showError("حدث خطأ أثناء تحليل الملف.");
             }
         };
         reader.readAsText(file);
@@ -168,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const roomsSet = new Set();
 
         const timeMap = {};
-        const uniqueFetDays = new Set();
+        const uniqueFetDays = [];
         
         const dayNamesMap = {};
         const daysNodes = xmlDoc.querySelectorAll('Days_List Day');
@@ -177,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const longName = dayNode.querySelector('Long_Name')?.textContent;
             if (name) {
                 dayNamesMap[name] = longName || name;
+                uniqueFetDays.push(name);
             }
         });
 
@@ -186,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const hour = node.querySelector('Hour')?.textContent;
             if(day && hour) {
                 timeMap[actId] = { day, hour };
-                uniqueFetDays.add(day);
+                if (!uniqueFetDays.includes(day)) uniqueFetDays.push(day);
             }
         });
 
@@ -208,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
             roomsArr: Array.from(roomsSet),
             timeMap,
             roomMap,
-            uniqueFetDays: Array.from(uniqueFetDays),
+            uniqueFetDays,
             classDivisionsMap,
             dayNamesMap
         };
@@ -220,55 +256,75 @@ document.addEventListener('DOMContentLoaded', () => {
         hideAllCards();
         mappingContainer.innerHTML = '';
         
-        const ascDays = [
-            {val: 0, label: "الأحد (DIM)"},
-            {val: 1, label: "الإثنين (LUN)"},
-            {val: 2, label: "الثلاثاء (MAR)"},
-            {val: 3, label: "الأربعاء (MER)"},
-            {val: 4, label: "الخميس (JEU)"},
-            {val: 5, label: "السبت (SAM)"}
-        ];
+        const isHalfDaysMode = halfDaysToggle.checked;
         
-        parsedData.uniqueFetDays.forEach(fetDay => {
-            const row = document.createElement('div');
-            row.className = 'mapping-row';
+        if (isHalfDaysMode) {
+            if(mappingInstructions) mappingInstructions.textContent = "تتم المزامنة بين أنصاف الأيام في ملف FET والأيام في aSc (من اليوم 1 إلى اليوم 12):";
             
-            const longName = parsedData.dayNamesMap ? (parsedData.dayNamesMap[fetDay] || fetDay) : fetDay;
-            const searchStr = longName + " " + fetDay;
-            
-            // Try to guess default mapping
-            let defaultDay = 0;
-            if (searchStr.includes('إثنين') || searchStr.includes('اثنين')) defaultDay = 1;
-            else if (searchStr.includes('ثلاثاء')) defaultDay = 2;
-            else if (searchStr.includes('أربعاء') || searchStr.includes('اربعاء')) defaultDay = 3;
-            else if (searchStr.includes('خميس')) defaultDay = 4;
-            
-            let defaultShift = (searchStr.includes(' م') || searchStr.endsWith('م') || searchStr.includes('مساء')) ? 1 : 0;
-            
-            row.innerHTML = `
-                <div class="mapping-label">${fetDay} ${longName && longName !== fetDay ? `(${longName})` : ''}</div>
-                <div class="mapping-selects">
-                    <select class="mapping-select day-select" data-fetday="${fetDay}">
-                        ${ascDays.map(d => `<option value="${d.val}" ${d.val === defaultDay ? 'selected' : ''}>${d.label}</option>`).join('')}
-                    </select>
-                    <select class="mapping-select shift-select" data-fetday="${fetDay}">
-                        <option value="0" ${defaultShift === 0 ? 'selected' : ''}>صباحي (الحصص 1-4)</option>
-                        <option value="1" ${defaultShift === 1 ? 'selected' : ''}>مسائي (الحصص 5-8)</option>
-                    </select>
-                </div>
-            `;
-            mappingContainer.appendChild(row);
-        });
-        
-        // Handle Half-Days Toggle State
-        if (halfDaysToggle.checked) {
-            mappingContainer.style.display = 'none';
-            if(mappingInstructions) mappingInstructions.style.display = 'none';
+            parsedData.uniqueFetDays.forEach((fetDay, i) => {
+                const row = document.createElement('div');
+                row.className = 'mapping-row';
+                const longName = parsedData.dayNamesMap ? (parsedData.dayNamesMap[fetDay] || fetDay) : fetDay;
+                
+                let options = '';
+                for(let d=0; d<12; d++) {
+                    options += `<option value="${d}" ${d === i ? 'selected' : ''}>اليوم ${d + 1}</option>`;
+                }
+                
+                row.innerHTML = `
+                    <div class="mapping-label">${fetDay} ${longName && longName !== fetDay ? `(${longName})` : ''}</div>
+                    <div class="mapping-selects">
+                        <select class="mapping-select half-day-select" data-fetday="${fetDay}">
+                            ${options}
+                        </select>
+                    </div>
+                `;
+                mappingContainer.appendChild(row);
+            });
         } else {
-            mappingContainer.style.display = 'block';
-            if(mappingInstructions) mappingInstructions.style.display = 'block';
+            if(mappingInstructions) mappingInstructions.textContent = "قم بربط أيام ملف FET بأيام aSc والفترات (صباحي/مسائي):";
+            
+            const ascDays = [
+                {val: 0, label: "الأحد (DIM)"},
+                {val: 1, label: "الإثنين (LUN)"},
+                {val: 2, label: "الثلاثاء (MAR)"},
+                {val: 3, label: "الأربعاء (MER)"},
+                {val: 4, label: "الخميس (JEU)"},
+                {val: 5, label: "السبت (SAM)"}
+            ];
+            
+            parsedData.uniqueFetDays.forEach(fetDay => {
+                const row = document.createElement('div');
+                row.className = 'mapping-row';
+                
+                const longName = parsedData.dayNamesMap ? (parsedData.dayNamesMap[fetDay] || fetDay) : fetDay;
+                const searchStr = longName + " " + fetDay;
+                
+                // Try to guess default mapping
+                let defaultDay = 0;
+                if (searchStr.includes('إثنين') || searchStr.includes('اثنين')) defaultDay = 1;
+                else if (searchStr.includes('ثلاثاء')) defaultDay = 2;
+                else if (searchStr.includes('أربعاء') || searchStr.includes('اربعاء')) defaultDay = 3;
+                else if (searchStr.includes('خميس')) defaultDay = 4;
+                
+                let defaultShift = (searchStr.includes(' م') || searchStr.endsWith('م') || searchStr.includes('مساء')) ? 1 : 0;
+                
+                row.innerHTML = `
+                    <div class="mapping-label">${fetDay} ${longName && longName !== fetDay ? `(${longName})` : ''}</div>
+                    <div class="mapping-selects">
+                        <select class="mapping-select day-select" data-fetday="${fetDay}">
+                            ${ascDays.map(d => `<option value="${d.val}" ${d.val === defaultDay ? 'selected' : ''}>${d.label}</option>`).join('')}
+                        </select>
+                        <select class="mapping-select shift-select" data-fetday="${fetDay}">
+                            <option value="0" ${defaultShift === 0 ? 'selected' : ''}>صباحي (الحصص 1-4)</option>
+                            <option value="1" ${defaultShift === 1 ? 'selected' : ''}>مسائي (الحصص 5-8)</option>
+                        </select>
+                    </div>
+                `;
+                mappingContainer.appendChild(row);
+            });
         }
-
+        
         mappingCard.classList.remove('hidden');
     }
 
@@ -279,9 +335,15 @@ document.addEventListener('DOMContentLoaded', () => {
     exportBtn.addEventListener('click', () => {
         const isHalfDaysMode = halfDaysToggle.checked;
         
-        // Build day mapping configuration
         const dayConfig = {};
-        if (!isHalfDaysMode) {
+        
+        if (isHalfDaysMode) {
+            const selects = document.querySelectorAll('.half-day-select');
+            for(let i=0; i<selects.length; i++){
+                const fetDay = selects[i].getAttribute('data-fetday');
+                dayConfig[fetDay] = parseInt(selects[i].value);
+            }
+        } else {
             const daySelects = document.querySelectorAll('.day-select');
             const shiftSelects = document.querySelectorAll('.shift-select');
             
@@ -312,10 +374,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Days
         xml += `<days options="canadd" columns="day,name,short">\n`;
         if (isHalfDaysMode) {
-            uniqueFetDays.forEach((fetDay, i) => {
-                const name = dayNamesMap ? (dayNamesMap[fetDay] || fetDay) : fetDay;
-                xml += `<day day="${i}" short="${fetDay}" name="${name}"/>\n`;
+            let maxDay = 0;
+            Object.values(dayConfig).forEach(val => {
+                if (val > maxDay) maxDay = val;
             });
+            for (let i = 0; i <= maxDay; i++) {
+                const name = `اليوم ${i + 1}`;
+                xml += `<day day="${i}" short="J${i + 1}" name="${name}"/>\n`;
+            }
         } else {
             const dayNames = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "السبت"];
             const dayShorts = ["DIM", "LUN", "MAR", "MER", "JEU", "SAM"];
@@ -325,9 +391,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         xml += `</days>\n`;
 
-        // Periods (Standard 1 to 8, + 0 for 7:00)
+        // Periods (Standard 1 to 8, + 0 for 7:00. If half-days mode, only 4 periods)
         xml += `<periods options="canadd" columns="period,starttime,endtime">\n`;
-        for(let i=0; i<=8; i++){
+        const maxPeriods = isHalfDaysMode ? 4 : 8;
+        for(let i=0; i<=maxPeriods; i++){
             xml += `<period period="${i}" starttime="${7+i}:00" endtime="${8+i}:00"/>\n`;
         }
         xml += `</periods>\n`;
@@ -413,8 +480,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let rId = roomMap[act.id] ? roomId(roomMap[act.id]) : "";
 
                 if (isHalfDaysMode) {
-                    let mappedDay = uniqueFetDays.indexOf(time.day);
-                    if (mappedDay !== -1) {
+                    let mappedDay = dayConfig[time.day];
+                    if (mappedDay !== undefined) {
                         xml += `<card day="${mappedDay}" period="${h}" classroomids="${rId}" lessonid="*${act.id}"/>\n`;
                     }
                 } else {
@@ -444,23 +511,264 @@ document.addEventListener('DOMContentLoaded', () => {
         hideAllCards();
         activitiesCountSpan.textContent = activities.length;
         successCard.classList.remove('hidden');
-        triggerDownload();
+        triggerDownload("ASC");
     }
 
-    function triggerDownload() {
+    function parseAscXml(xmlString) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+        
+        const days = Array.from(xmlDoc.querySelectorAll('days day')).map(node => ({
+            id: node.getAttribute('day'),
+            name: node.getAttribute('name')
+        }));
+        
+        const periods = Array.from(xmlDoc.querySelectorAll('periods period')).map(node => ({
+            id: node.getAttribute('period'),
+            name: node.getAttribute('starttime') + "-" + node.getAttribute('endtime')
+        }));
+        
+        const teachers = Array.from(xmlDoc.querySelectorAll('teachers teacher')).map(node => ({
+            id: node.getAttribute('id'),
+            name: node.getAttribute('short') || node.getAttribute('name')
+        }));
+        
+        const subjects = Array.from(xmlDoc.querySelectorAll('subjects subject')).map(node => ({
+            id: node.getAttribute('id'),
+            name: node.getAttribute('short') || node.getAttribute('name')
+        }));
+        
+        const classes = Array.from(xmlDoc.querySelectorAll('classes class')).map(node => ({
+            id: node.getAttribute('id'),
+            name: node.getAttribute('short') || node.getAttribute('name')
+        }));
+        
+        const classrooms = Array.from(xmlDoc.querySelectorAll('classrooms classroom')).map(node => ({
+            id: node.getAttribute('id'),
+            name: node.getAttribute('short') || node.getAttribute('name')
+        }));
+        
+        const groups = Array.from(xmlDoc.querySelectorAll('groups group')).map(node => ({
+            id: node.getAttribute('id'),
+            classid: node.getAttribute('classid'),
+            name: node.getAttribute('name'),
+            entireclass: node.getAttribute('entireclass') === '1'
+        }));
+        
+        const lessons = Array.from(xmlDoc.querySelectorAll('lessons lesson')).map(node => ({
+            id: node.getAttribute('id'),
+            subjectid: node.getAttribute('subjectid'),
+            teacherids: node.getAttribute('teacherids'),
+            classids: node.getAttribute('classids'),
+            groupids: node.getAttribute('groupids'),
+            classroomids: node.getAttribute('classroomids'),
+            periodspercard: parseInt(node.getAttribute('periodspercard') || '1')
+        }));
+        
+        const cards = Array.from(xmlDoc.querySelectorAll('cards card')).map(node => ({
+            lessonid: node.getAttribute('lessonid'),
+            day: node.getAttribute('day'),
+            period: node.getAttribute('period'),
+            classroomids: node.getAttribute('classroomids')
+        }));
+        
+        const parsedAscData = {
+            days, periods, teachers, subjects, classes, classrooms, groups, lessons, cards
+        };
+        
+        generateFetXml(parsedAscData);
+    }
+    
+    function generateFetXml(data) {
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+        xml += `<fet version="6.28.2">\n`;
+        xml += `<Institution_Name>Generated by fet2asc (asc2fet mode)</Institution_Name>\n`;
+        xml += `<Comments>Converted from aSc XML</Comments>\n`;
+        
+        // Hours
+        xml += `<Hours_List>\n`;
+        xml += `<Number>${data.periods.length}</Number>\n`;
+        data.periods.forEach(p => {
+            xml += `<Name>${p.name}</Name>\n`;
+        });
+        xml += `</Hours_List>\n`;
+        
+        // Days
+        xml += `<Days_List>\n`;
+        xml += `<Number>${data.days.length}</Number>\n`;
+        data.days.forEach(d => {
+            xml += `<Name>${d.name}</Name>\n`;
+        });
+        xml += `</Days_List>\n`;
+        
+        // Students
+        xml += `<Students_List>\n`;
+        data.classes.forEach(c => {
+            xml += `<Year>\n`;
+            xml += `<Name>سنة_${c.name}</Name>\n<Number_of_Students>30</Number_of_Students>\n`;
+            
+            const classGroups = data.groups.filter(g => g.classid === c.id);
+            
+            xml += `<Group>\n`;
+            xml += `<Name>${c.name}</Name>\n<Number_of_Students>30</Number_of_Students>\n`;
+            
+            classGroups.forEach(g => {
+                if(!g.entireclass) {
+                    xml += `<Subgroup>\n`;
+                    xml += `<Name>${g.name}</Name>\n<Number_of_Students>15</Number_of_Students>\n`;
+                    xml += `</Subgroup>\n`;
+                }
+            });
+            
+            xml += `</Group>\n`;
+            xml += `</Year>\n`;
+        });
+        xml += `</Students_List>\n`;
+        
+        // Teachers
+        xml += `<Teachers_List>\n`;
+        data.teachers.forEach(t => {
+            xml += `<Teacher>\n<Name>${t.name}</Name>\n</Teacher>\n`;
+        });
+        xml += `</Teachers_List>\n`;
+        
+        // Subjects
+        xml += `<Subjects_List>\n`;
+        data.subjects.forEach(s => {
+            xml += `<Subject>\n<Name>${s.name}</Name>\n</Subject>\n`;
+        });
+        xml += `</Subjects_List>\n`;
+        
+        // Rooms
+        xml += `<Rooms_List>\n`;
+        data.classrooms.forEach(r => {
+            xml += `<Room>\n<Name>${r.name}</Name>\n<Capacity>40</Capacity>\n</Room>\n`;
+        });
+        xml += `</Rooms_List>\n`;
+        
+        let activitiesXml = `<Activities_List>\n`;
+        let timeConstraintsXml = `<Time_Constraints_List>\n<ConstraintBasicWeightPercentage>\n<Weight_Percentage>100</Weight_Percentage>\n</ConstraintBasicWeightPercentage>\n`;
+        let spaceConstraintsXml = `<Space_Constraints_List>\n<ConstraintBasicCompulsorySpace>\n<Weight_Percentage>100</Weight_Percentage>\n</ConstraintBasicCompulsorySpace>\n`;
+        
+        let activityCounter = 1;
+        
+        const getDayName = (id) => { const d = data.days.find(x => x.id === id); return d ? d.name : ''; };
+        const getPeriodName = (id) => { const p = data.periods.find(x => x.id === id); return p ? p.name : ''; };
+        const getTeacherName = (id) => { const t = data.teachers.find(x => x.id === id); return t ? t.name : ''; };
+        const getSubjectName = (id) => { const s = data.subjects.find(x => x.id === id); return s ? s.name : ''; };
+        const getRoomName = (id) => { const r = data.classrooms.find(x => x.id === id); return r ? r.name : ''; };
+        
+        const getStudentName = (groupIds, classIds) => {
+            if (groupIds) {
+                const gIdArr = groupIds.split(',');
+                const names = [];
+                gIdArr.forEach(gId => {
+                    const grp = data.groups.find(x => x.id === gId);
+                    if (grp) {
+                        if (grp.entireclass) {
+                            const c = data.classes.find(x => x.id === grp.classid);
+                            if(c) names.push(c.name);
+                        } else {
+                            names.push(grp.name);
+                        }
+                    }
+                });
+                if(names.length > 0) return names;
+            }
+            if (classIds) {
+                const cIdArr = classIds.split(',');
+                const names = [];
+                cIdArr.forEach(cId => {
+                    const c = data.classes.find(x => x.id === cId);
+                    if (c) names.push(c.name);
+                });
+                return names;
+            }
+            return [];
+        };
+        
+        data.cards.forEach(card => {
+            const lesson = data.lessons.find(l => l.id === card.lessonid);
+            if (!lesson) return;
+            
+            const actId = activityCounter++;
+            const duration = lesson.periodspercard;
+            
+            activitiesXml += `<Activity>\n`;
+            if (lesson.teacherids) {
+                lesson.teacherids.split(',').forEach(tId => {
+                    const tName = getTeacherName(tId);
+                    if (tName) activitiesXml += `<Teacher>${tName}</Teacher>\n`;
+                });
+            }
+            const sName = getSubjectName(lesson.subjectid);
+            if (sName) activitiesXml += `<Subject>${sName}</Subject>\n`;
+            
+            const studentNames = getStudentName(lesson.groupids, lesson.classids);
+            studentNames.forEach(st => {
+                activitiesXml += `<Students>${st}</Students>\n`;
+            });
+            
+            activitiesXml += `<Duration>${duration}</Duration>\n`;
+            activitiesXml += `<Total_Duration>${duration}</Total_Duration>\n`;
+            activitiesXml += `<Id>${actId}</Id>\n`;
+            activitiesXml += `<Activity_Group_Id>0</Activity_Group_Id>\n`;
+            activitiesXml += `<Active>true</Active>\n`;
+            activitiesXml += `</Activity>\n`;
+            
+            const dayName = getDayName(card.day);
+            const periodName = getPeriodName(card.period);
+            if (dayName && periodName) {
+                timeConstraintsXml += `<ConstraintActivityPreferredStartingTime>\n<Weight_Percentage>100</Weight_Percentage>\n<Activity_Id>${actId}</Activity_Id>\n<Day>${dayName}</Day>\n<Hour>${periodName}</Hour>\n<Permanently_Locked>true</Permanently_Locked>\n</ConstraintActivityPreferredStartingTime>\n`;
+            }
+            
+            let rooms = [];
+            if (card.classroomids) rooms = card.classroomids.split(',');
+            else if (lesson.classroomids) rooms = lesson.classroomids.split(',');
+            
+            if (rooms.length === 1) {
+                const rName = getRoomName(rooms[0]);
+                if (rName) {
+                    spaceConstraintsXml += `<ConstraintActivityPreferredRoom>\n<Weight_Percentage>100</Weight_Percentage>\n<Activity_Id>${actId}</Activity_Id>\n<Room>${rName}</Room>\n<Permanently_Locked>true</Permanently_Locked>\n</ConstraintActivityPreferredRoom>\n`;
+                }
+            }
+        });
+        
+        activitiesXml += `</Activities_List>\n`;
+        timeConstraintsXml += `</Time_Constraints_List>\n`;
+        spaceConstraintsXml += `</Space_Constraints_List>\n`;
+        
+        xml += activitiesXml;
+        xml += timeConstraintsXml;
+        xml += spaceConstraintsXml;
+        xml += `</fet>`;
+        
+        generatedXml = xml;
+        
+        hideAllCards();
+        activitiesCountSpan.textContent = activityCounter - 1;
+        successCard.classList.remove('hidden');
+        triggerDownload("FET");
+    }
+
+    function triggerDownload(type = "ASC") {
         if(!generatedXml) return;
         const blob = new Blob([generatedXml], {type: "text/xml;charset=utf-8"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${originalFileName}_aSc.xml`;
+        const ext = type === "ASC" ? "_aSc.xml" : "_from_aSc.fet";
+        a.download = `${originalFileName}${ext}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
 
-    downloadBtn.addEventListener('click', triggerDownload);
+    downloadBtn.addEventListener('click', () => {
+        const type = currentMode === 'fet2asc' ? 'ASC' : 'FET';
+        triggerDownload(type);
+    });
 
     function hideAllCards() {
         statusCard.classList.add('hidden');

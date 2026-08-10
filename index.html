@@ -14,6 +14,13 @@
             <h1>محول جداول FET <span>إلى aSc Timetables</span></h1>
             <p>قم بتحويل ملفات FET إلى ملفات XML متوافقة مع برنامج aSc بخطوة واحدة</p>
             <p style="margin-top: 10px; font-weight: bold; font-size: 14px; color: var(--primary);">مطور البرنامج: أحمد حمرالعين</p>
+            
+            <div class="mode-selector">
+                <input type="radio" id="mode-fet2asc" name="app-mode" value="fet2asc" checked>
+                <label for="mode-fet2asc">من FET إلى aSc</label>
+                <input type="radio" id="mode-asc2fet" name="app-mode" value="asc2fet">
+                <label for="mode-asc2fet">من aSc إلى FET</label>
+            </div>
         </header>
 
         <main>
@@ -25,12 +32,12 @@
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
                 </div>
-                <h2>اسحب وأفلت ملف FET هنا</h2>
+                <h2 id="drop-zone-text">اسحب وأفلت ملف FET هنا</h2>
                 <p>أو</p>
-                <label for="file-input" class="custom-file-upload">
+                <label for="file-input" class="custom-file-upload" id="file-upload-label">
                     اختر ملف FET
                 </label>
-                <input type="file" id="file-input" accept=".fet,.xml">
+                <input type="file" id="file-input" accept=".fet">
             </div>
 
             <div id="status-card" class="status-card hidden">
