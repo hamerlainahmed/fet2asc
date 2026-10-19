@@ -65,31 +65,89 @@ header p {
 }
 
 .mode-selector {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 15px;
-    margin-top: 15px;
+    margin-top: 25px;
+    width: 100%;
+    max-width: 1000px;
 }
 
-.mode-selector input[type="radio"] {
+.mode-card {
+    cursor: pointer;
+    position: relative;
+    display: block;
+}
+
+.mode-card input[type="radio"] {
     display: none;
 }
 
-.mode-selector label {
-    padding: 8px 16px;
+.mode-card-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
     background-color: var(--card-bg);
     border: 2px solid var(--border-color);
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 500;
-    color: var(--text-color);
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 100%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.mode-icon {
+    font-size: 28px;
+    background: #f0f7ff;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
     transition: all 0.3s ease;
 }
 
-.mode-selector input[type="radio"]:checked + label {
-    background-color: var(--primary-light);
+.mode-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mode-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.mode-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.mode-card:hover .mode-card-content {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    border-color: #b6d4fe;
+}
+
+.mode-card input[type="radio"]:checked + .mode-card-content {
+    background-color: #f0f7ff;
     border-color: var(--primary);
-    color: var(--primary-dark);
+    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.15);
+}
+
+.mode-card input[type="radio"]:checked + .mode-card-content .mode-icon {
+    background: var(--primary);
+    color: white;
+    transform: scale(1.1);
+}
+
+.mode-card-content .badge {
+    position: absolute;
+    top: -8px;
+    right: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .badge {
@@ -508,5 +566,745 @@ input:checked + .slider:before {
 
 .modal.hidden .modal-content {
     transform: translateY(-20px);
+}
+
+/* ===================================
+   ABSENCE SHEET STYLES
+   =================================== */
+
+.absence-sheet-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #e8e8e8;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Tajawal', sans-serif;
+}
+
+.absence-sheet-container.hidden {
+    display: none !important;
+}
+
+.absence-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #023047 0%, #219EBC 100%);
+    padding: 12px 24px;
+    color: white;
+    gap: 15px;
+    flex-wrap: wrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 10;
+}
+
+.absence-controls-right,
+.absence-controls-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.absence-controls label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.absence-input,
+.absence-select {
+    padding: 6px 12px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 13px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    outline: none;
+    transition: all 0.3s;
+}
+
+.absence-input::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+
+.absence-input:focus,
+.absence-select:focus {
+    background: rgba(255,255,255,0.25);
+    border-color: var(--primary);
+}
+
+.absence-select option {
+    background: #023047;
+    color: white;
+}
+
+.absence-period-tabs {
+    display: flex;
+    gap: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+.absence-tab {
+    padding: 6px 18px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+    font-family: 'Tajawal', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.absence-tab.active {
+    background: var(--primary);
+    color: var(--text-main);
+    font-weight: 700;
+}
+
+.absence-tab:hover:not(.active) {
+    background: rgba(255,255,255,0.2);
+}
+
+.absence-print-btn {
+    padding: 6px 18px;
+    background: var(--success);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.absence-print-btn:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.absence-print-btn.btn-print-all {
+    background: #0284c7;
+}
+
+.absence-print-btn.btn-print-all:hover {
+    background: #0369a1;
+}
+
+.absence-back-btn {
+    padding: 6px 14px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    font-family: 'Tajawal', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.absence-back-btn:hover {
+    background: rgba(255,255,255,0.25);
+}
+
+.absence-sheet-content {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+    padding: 20px;
+}
+
+/* A4 Sheet Styling */
+.a4-sheet {
+    width: 210mm;
+    min-height: 297mm;
+    background: white;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    padding: 8mm 10mm;
+    direction: rtl;
+    font-size: 10pt;
+    color: #000;
+    position: relative;
+    box-sizing: border-box;
+    transition: width 0.3s ease, min-height 0.3s ease;
+}
+
+/* Landscape Mode Screen Styling */
+.absence-sheet-container.is-landscape .a4-sheet,
+.a4-sheet.is-landscape {
+    width: 297mm;
+    min-height: 210mm;
+    padding: 6mm 8mm;
+}
+
+.a4-sheet * {
+    font-family: 'Tajawal', sans-serif;
+}
+
+.absence-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2mm;
+    padding: 0;
+}
+
+.absence-header-right {
+    text-align: right;
+}
+
+.absence-header-right .school-name {
+    font-size: 11pt;
+    font-weight: 700;
+}
+
+.absence-header-right .day-title {
+    font-size: 11pt;
+    font-weight: 700;
+    margin-top: 1mm;
+}
+
+.absence-header-right .day-title .day-name {
+    color: #c00;
+    font-weight: 700;
+}
+
+.absence-header-right .period-label {
+    font-size: 10pt;
+    font-weight: 700;
+}
+
+.absence-header-left {
+    text-align: left;
+    font-size: 9pt;
+    line-height: 1.5;
+}
+
+.absence-header-left .note {
+    font-size: 8pt;
+    line-height: 1.6;
+    text-align: right;
+}
+
+.absence-top-note {
+    border: 2.5px solid #000;
+    padding: 1.5mm 3mm;
+    font-size: 8pt;
+    font-weight: 900;
+    text-align: center;
+    line-height: 1.5;
+    background: #fff;
+    max-width: 110mm;
+}
+
+/* Absence Table */
+.absence-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 8pt;
+}
+
+.absence-table th,
+.absence-table td {
+    border: 2px solid #000;
+    padding: 1.5mm 1.5mm;
+    text-align: center;
+    vertical-align: middle;
+    line-height: 1.3;
+}
+
+.absence-table thead th {
+    background: #e8e8e8;
+    font-weight: 700;
+    font-size: 8.5pt;
+    padding: 2mm 1.5mm;
+}
+
+/* Base / Portrait column widths */
+.absence-table .col-class {
+    width: 15mm;
+    writing-mode: horizontal-tb;
+}
+
+.absence-table .col-prev-absence {
+    width: 38mm;
+}
+
+.absence-table .col-time {
+    width: auto;
+}
+
+.absence-table .col-names {
+    width: auto;
+}
+
+.absence-table .col-teacher-sig {
+    width: 21mm;
+}
+
+.absence-table .col-admin {
+    width: 26mm;
+}
+
+/* ===================================
+   Landscape Adaptations
+   =================================== */
+/* Fixed columns in Landscape: NOT expanded, keeping signatures compact */
+.absence-sheet-container.is-landscape .absence-table .col-class,
+.a4-sheet.is-landscape .absence-table .col-class {
+    width: 16mm;
+}
+
+.absence-sheet-container.is-landscape .absence-table .col-prev-absence,
+.a4-sheet.is-landscape .absence-table .col-prev-absence {
+    width: 40mm;
+}
+
+.absence-sheet-container.is-landscape .absence-table .col-teacher-sig,
+.a4-sheet.is-landscape .absence-table .col-teacher-sig {
+    width: 21mm !important;
+}
+
+.absence-sheet-container.is-landscape .absence-table .col-admin,
+.a4-sheet.is-landscape .absence-table .col-admin {
+    width: 42mm !important; /* Increased for administrative notes in evening */
+}
+
+/* Student absence recording cells: EXPAND to fill ALL remaining space across the 297mm paper */
+.absence-sheet-container.is-landscape .absence-table .col-time,
+.a4-sheet.is-landscape .absence-table .col-time {
+    width: auto !important;
+}
+
+/* Header adjustments for Landscape */
+.absence-sheet-container.is-landscape .absence-top-note,
+.a4-sheet.is-landscape .absence-top-note {
+    max-width: 150mm;
+    font-size: 8.5pt;
+}
+
+.absence-sheet-container.is-landscape .absence-header-right .school-name,
+.a4-sheet.is-landscape .absence-header-right .school-name {
+    font-size: 12pt;
+}
+
+.absence-sheet-container.is-landscape .absence-header-right .day-title,
+.a4-sheet.is-landscape .absence-header-right .day-title {
+    font-size: 11.5pt;
+}
+
+/* Row heights in Landscape: increased height for all cases */
+.absence-sheet-container.is-landscape .absence-table .class-row td,
+.a4-sheet.is-landscape .absence-table .class-row td {
+    height: 22mm;
+    min-height: 22mm;
+}
+
+.absence-sheet-container.is-landscape .absence-table .split-lesson-cell,
+.a4-sheet.is-landscape .absence-table .split-lesson-cell {
+    height: 22mm !important;
+    min-height: 22mm !important;
+}
+
+.absence-sheet-container.is-landscape .absence-table .split-diagonal-container,
+.a4-sheet.is-landscape .absence-table .split-diagonal-container {
+    height: 100%;
+    min-height: 22mm;
+}
+
+.absence-sheet-container.is-landscape .absence-footer,
+.a4-sheet.is-landscape .absence-footer {
+    margin-top: 4mm;
+}
+
+.absence-table .class-cell {
+    padding: 1mm 0.5mm !important;
+    text-align: center;
+    vertical-align: middle;
+    background: #f5f5f5;
+}
+
+.absence-table .class-cell-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5mm;
+    width: 100%;
+}
+
+.absence-table .class-name {
+    font-size: 9.5pt;
+    font-weight: 800;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.absence-table .class-room-badge {
+    font-size: 6.8pt;
+    font-weight: 700;
+    color: #111;
+    border: 1px solid #777;
+    border-radius: 3px;
+    padding: 0.2mm 1.5mm;
+    background: #e9ecef;
+    line-height: 1.2;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.absence-table .class-room-mobile {
+    background: #fff3cd;
+    border-color: #d39e00;
+    color: #856404;
+}
+
+.absence-table .subject-teacher-cell {
+    font-size: 7.5pt;
+    line-height: 1.4;
+    text-align: center;
+    padding: 1mm;
+}
+
+.absence-table .subject-teacher-cell .subject-name {
+    font-weight: 700;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.absence-table .subject-teacher-cell .teacher-name {
+    font-weight: 400;
+    display: block;
+    font-size: 7pt;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.absence-table .room-tag {
+    display: inline-block;
+    font-size: 6.2pt;
+    font-weight: 700;
+    color: #a00;
+    background: #fff0f0;
+    border: 0.8px solid #f5c2c7;
+    border-radius: 2px;
+    padding: 0 1mm;
+    margin-top: 0.6mm;
+    line-height: 1.2;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Diagonally split lesson cell (Tafweej) */
+.absence-table .split-lesson-cell {
+    position: relative !important;
+    padding: 0 !important;
+    height: 22mm;
+    overflow: hidden !important;
+}
+
+.absence-table .split-diagonal-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 22mm;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.absence-table .diagonal-divider-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    direction: ltr !important;
+    z-index: 1;
+}
+
+.absence-table .subgroup-part {
+    position: absolute;
+    z-index: 2;
+    line-height: 1.15;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.absence-table .part-top {
+    top: 1mm;
+    right: 1.2mm;
+    text-align: right;
+    align-items: flex-start;
+    max-width: 82%;
+}
+
+.absence-table .part-bottom {
+    bottom: 1mm;
+    left: 1.2mm;
+    text-align: left;
+    align-items: flex-end;
+    max-width: 82%;
+}
+
+.absence-table .subgroup-subject {
+    font-size: 7.2pt;
+    font-weight: 800;
+    color: #000;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.15;
+}
+
+.absence-table .subgroup-details {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.8mm;
+    margin-top: 0.4mm;
+    white-space: nowrap;
+}
+
+.absence-table .part-bottom .subgroup-details {
+    flex-direction: row-reverse;
+}
+
+.absence-table .subgroup-teacher {
+    font-size: 5.4pt;
+    font-weight: 600;
+    color: #222;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 14mm;
+    line-height: 1.1;
+}
+
+.absence-table .subgroup-room {
+    display: inline-block;
+    font-size: 5pt;
+    font-weight: 700;
+    color: #a00;
+    background: #fff0f0;
+    border: 0.5px solid #d99;
+    border-radius: 2px;
+    padding: 0 0.6mm;
+    white-space: nowrap;
+    line-height: 1.1;
+    flex-shrink: 0;
+}
+
+.absence-table .teacher-sig-box {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    justify-content: space-between;
+}
+
+.absence-table .sig-space {
+    flex-grow: 1;
+    min-height: 11mm;
+}
+
+.absence-table .empty-cell {
+    background: #fafafa;
+}
+
+.absence-table .shaded-cell {
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 4px,
+        #000 4px,
+        #000 5px
+    ) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+}
+
+.absence-table .class-row td {
+    height: 22mm;
+    min-height: 22mm;
+}
+
+.absence-footer {
+    margin-top: 6mm;
+    text-align: left;
+    font-size: 12pt;
+    font-weight: 700;
+    padding-left: 10mm;
+}
+
+/* Wing group header */
+.absence-table .wing-header {
+    background: #d0d0d0;
+    font-weight: 700;
+    font-size: 9pt;
+    text-align: center;
+    padding: 2mm;
+}
+
+/* Class Selector Dropdown */
+.class-selector-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.class-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    border: 1px solid #ccc;
+    z-index: 100;
+    width: 250px;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+}
+
+.class-dropdown-header {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    font-weight: bold;
+    background: #f5f5f5;
+    border-radius: 8px 8px 0 0;
+}
+
+.class-checkboxes {
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.class-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #333;
+}
+
+.class-checkboxes input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* Print styles */
+@media print {
+    html, body {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        display: block !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+    }
+
+    body > *:not(.absence-sheet-container) {
+        display: none !important;
+    }
+
+    .absence-sheet-container {
+        position: static !important;
+        background: white !important;
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .absence-controls {
+        display: none !important;
+    }
+
+    .absence-sheet-content {
+        display: block !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    .a4-sheet {
+        box-shadow: none !important;
+        margin: 0 auto !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding: 3mm 2mm !important;
+        width: 100% !important;
+        min-height: auto !important;
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    .a4-sheet:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+    }
+
+    .absence-sheet-container.is-landscape .a4-sheet,
+    .a4-sheet.is-landscape {
+        width: 100% !important;
+        padding: 3mm 2mm !important;
+    }
+
+    .absence-table tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    .absence-table th,
+    .absence-table td {
+        border: 2px solid #000 !important;
+    }
+
+    .absence-table,
+    .absence-table * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    @page {
+        size: A4 portrait;
+        margin: 4mm;
+    }
 }
 

@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const versionElement = document.getElementById('app-version');
         if (versionElement && pkg && pkg.version) {
             versionElement.textContent = `الإصدار ${pkg.version}`;
-            
+
             // Check for update to show release notes
             const lastSeenVersion = localStorage.getItem('lastSeenVersion');
             if (lastSeenVersion !== pkg.version) {
@@ -68,7 +68,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let parsedData = null; // Store data temporarily before export
     let ascXmlContent = null; // Store XML content to process after mapping
-    let currentMode = 'fet2asc'; // 'fet2asc', 'asc2fet', 'highest2asc', or '12temps2asc'
+    let currentMode = 'fet2asc'; // 'fet2asc', 'asc2fet', 'highest2asc', '12temps2asc', or 'absence'
+
+    // Absence mode state
+    let absenceParsedData = null;
+    let absenceCurrentPeriod = 'morning';
+    let absenceCurrentOrientation = 'portrait';
+    let absenceSelectedClasses = new Set();
+    const modeAbsence = document.getElementById('mode-absence');
+    const absenceContainer = document.getElementById('absence-sheet-container');
+    const appContainer = document.querySelector('.app-container');
 
     // Highest mode state
     let highestFiles = { teachers: null, activities: null, subgroups: null };
@@ -96,6 +105,20 @@ document.addEventListener('DOMContentLoaded', () => {
             dropZone.classList.add('hidden');
             highestDropZone.classList.add('hidden');
             if (tempsDropZone) tempsDropZone.classList.remove('hidden');
+        } else if (modeAbsence && modeAbsence.checked) {
+            currentMode = 'absence';
+            dropZoneText.textContent = "اسحب وأفلت ملف FET المقفل هنا";
+            fileUploadLabel.textContent = "اختر ملف FET مقفل";
+            fileInput.accept = ".fet";
+            fileInput.multiple = false;
+            dropZone.classList.remove('hidden');
+            highestDropZone.classList.add('hidden');
+            if (tempsDropZone) tempsDropZone.classList.add('hidden');
+            const dropZoneNote = document.getElementById('drop-zone-note');
+            if (dropZoneNote) {
+                dropZoneNote.textContent = "ملاحظة: يتم استعمال الاسم الكامل (Long_Name) للأستاذ من ملف فيت.";
+                dropZoneNote.classList.remove('hidden');
+            }
         } else {
             currentMode = 'asc2fet';
             dropZoneText.textContent = "اسحب وأفلت ملف aSc XML هنا";
@@ -105,7 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dropZone.classList.remove('hidden');
             highestDropZone.classList.add('hidden');
             if (tempsDropZone) tempsDropZone.classList.add('hidden');
-          
+            const dropZoneNote = document.getElementById('drop-zone-note');
+            if (dropZoneNote) dropZoneNote.classList.add('hidden');
         }
         hideAllCards();
     }
@@ -119,6 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (mode12temps2asc) {
         mode12temps2asc.addEventListener('change', updateModeUI);
+    }
+    if (modeAbsence) {
+        modeAbsence.addEventListener('change', updateModeUI);
     }
 
     // --- Highest mode: file upload & drag-drop ---
@@ -172,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let loaded = 0;
         xmlFiles.forEach(file => {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = function (e) {
                 const content = e.target.result;
                 const type = detectHighestFileType(content, file.name);
                 if (type) {
@@ -206,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (highestFileInput) {
-        highestFileInput.addEventListener('change', function() {
+        highestFileInput.addEventListener('change', function () {
             handleHighestFiles(this.files);
         });
     }
@@ -249,13 +276,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error("لم يتم تحميل مكتبة xlsx بنجاح. تأكد من تثبيتها عبر npm.");
                 }
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = function (e) {
                     try {
                         const data = new Uint8Array(e.target.result);
-                        const workbook = xlsx.read(data, {type: 'array'});
+                        const workbook = xlsx.read(data, { type: 'array' });
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        const jsonData = xlsx.utils.sheet_to_json(worksheet, {header: 1});
+                        const jsonData = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
                         parse12TempsData(jsonData);
                     } catch (err) {
                         showError("حدث خطأ أثناء قراءة ملف 12temps: " + err.message);
@@ -285,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (tempsFileInput) {
-        tempsFileInput.addEventListener('change', function() {
+        tempsFileInput.addEventListener('change', function () {
             handle12TempsFiles(this.files);
         });
     }
@@ -341,6 +368,10 @@ document.addEventListener('DOMContentLoaded', () => {
             showError("الرجاء اختيار ملف بصيغة FET صالح.");
             return;
         }
+        if (currentMode === 'absence' && !file.name.toLowerCase().endsWith('.fet')) {
+            showError("الرجاء اختيار ملف FET مقفل.");
+            return;
+        }
         if (currentMode === 'asc2fet' && !file.name.toLowerCase().endsWith('.xml')) {
             showError("الرجاء اختيار ملف aSc XML صالح.");
             return;
@@ -365,6 +396,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     if (currentMode === 'fet2asc') {
                         parseFET(e.target.result);
+                    } else if (currentMode === 'absence') {
+                        parseFETForAbsence(e.target.result);
                     } else {
                         ascXmlContent = e.target.result;
                         showAscToFetMapping();
@@ -668,15 +701,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const actId = node.querySelector('Id')?.textContent;
                 if (!actId) return;
-                
+
                 const teachers = Array.from(node.querySelectorAll('Teacher')).map(t => t.textContent).filter(Boolean);
                 const subject = node.querySelector('Subject')?.textContent || '';
                 const studentsList = Array.from(node.querySelectorAll('Students')).map(s => s.textContent).filter(Boolean);
                 const duration = parseInt(node.querySelector('Duration')?.textContent || '1');
-                
+
                 teachers.forEach(t => teachersSet.add(t));
                 if (subject) subjectsSet.add(subject);
-                
+
                 activitiesMap[actId] = {
                     id: actId,
                     teachers: new Set(teachers),
@@ -825,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (sortedSlots.length > 1) {
                     let consecutive = true;
                     for (let i = 1; i < sortedSlots.length; i++) {
-                        const prevIdx = fetHoursList.indexOf(sortedSlots[i-1].hour);
+                        const prevIdx = fetHoursList.indexOf(sortedSlots[i - 1].hour);
                         const currIdx = fetHoursList.indexOf(sortedSlots[i].hour);
                         if (currIdx !== prevIdx + 1) {
                             consecutive = false;
@@ -946,7 +979,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const baseClass = rawClass;
             classesSet.add(baseClass);
-            
+
             // Determine term
             let term = 0;
             if (freq) {
@@ -955,7 +988,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (f === 't2') term = 2;
                 else if (f === 't3') term = 3;
             }
-            
+
             if (division > 0) {
                 if (!classDivisionsMap[baseClass]) classDivisionsMap[baseClass] = [];
                 // Format the parsed student string exactly as fet2asc handles it
@@ -966,7 +999,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Create a unique key for grouping consecutive hours
             const actKey = `${teacher}|${subject}|${baseClass}|${division}|${room}|${term}`;
-            
+
             if (!activitiesMap[actKey]) {
                 activitiesMap[actKey] = {
                     teachers: new Set([teacher]),
@@ -981,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const act = activitiesMap[actKey];
             act.hourSlots.push({ day: dayName, hour: hourName });
-            
+
             // Add student reference
             const studentRef = division > 0 ? `${baseClass}_ف${division}` : baseClass;
             if (!act.students.has(studentRef)) {
@@ -1018,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Group consecutive slots
                 let currentGroup = [sortedSlots[0]];
                 for (let i = 1; i < sortedSlots.length; i++) {
-                    const prevIdx = fetHoursList.indexOf(sortedSlots[i-1].hour);
+                    const prevIdx = fetHoursList.indexOf(sortedSlots[i - 1].hour);
                     const currIdx = fetHoursList.indexOf(sortedSlots[i].hour);
                     if (currIdx === prevIdx + 1) {
                         currentGroup.push(sortedSlots[i]);
@@ -1039,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentGroup = [sortedSlots[i]];
                     }
                 }
-                
+
                 // Output last group
                 if (currentGroup.length > 0) {
                     const actId = `12temps_${actIdCounter++}`;
@@ -1076,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showMappingUI();
     }
-    
+
     function showMappingUI() {
         hideAllCards();
         mappingContainer.innerHTML = '';
@@ -1830,5 +1863,842 @@ document.addEventListener('DOMContentLoaded', () => {
         hideAllCards();
         document.getElementById('error-message').textContent = msg;
         errorCard.classList.remove('hidden');
+    }
+
+    // =============================================
+    // ABSENCE SHEET FEATURE
+    // =============================================
+
+    function parseFETForAbsence(xmlString) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+
+        // Parse days
+        const daysNodes = xmlDoc.querySelectorAll('Days_List Day');
+        const daysList = [];
+        const dayNamesMap = {};
+        daysNodes.forEach(dayNode => {
+            const name = dayNode.querySelector('Name')?.textContent;
+            const longName = dayNode.querySelector('Long_Name')?.textContent;
+            if (name) {
+                daysList.push(name);
+                dayNamesMap[name] = longName || name;
+            }
+        });
+
+        // Parse Teachers
+        const teacherNodes = xmlDoc.querySelectorAll('Teachers_List Teacher');
+        const teacherNameMap = {};
+        teacherNodes.forEach(tNode => {
+            const name = tNode.querySelector('Name')?.textContent;
+            const longName = tNode.querySelector('Long_Name')?.textContent;
+            if (name) {
+                teacherNameMap[name] = longName || name;
+            }
+        });
+
+        // Parse hours
+        const hoursNodes = xmlDoc.querySelectorAll('Hours_List Hour');
+        const hoursList = [];
+        hoursNodes.forEach(hourNode => {
+            const name = hourNode.querySelector('Name')?.textContent;
+            if (name) hoursList.push(name);
+        });
+
+        // Parse classes (groups) & subgroups
+        const classesSet = new Set();
+        const subgroupMap = {};
+        const knownGroups = new Set();
+        const groupNodes = xmlDoc.querySelectorAll('Students_List Group');
+        groupNodes.forEach(groupNode => {
+            const groupName = groupNode.querySelector('Name')?.textContent?.trim();
+            if (groupName) {
+                knownGroups.add(groupName);
+                classesSet.add(groupName);
+                const subgroups = groupNode.querySelectorAll('Subgroup');
+                subgroups.forEach((subNode, index) => {
+                    const subName = subNode.querySelector('Name')?.textContent?.trim();
+                    if (subName) {
+                        let division = index + 1;
+                        const m = subName.match(/[فGg_](\d)/);
+                        if (m) division = parseInt(m[1]);
+                        subgroupMap[subName] = { baseClass: groupName, division, name: subName };
+                    }
+                });
+            }
+        });
+
+        // Parse Room constraints (Spatial constraints)
+        const classRoomsMap = {};
+        const singleHomeRoomNodes = xmlDoc.querySelectorAll('ConstraintStudentsSetHomeRoom');
+        singleHomeRoomNodes.forEach(node => {
+            const active = node.querySelector('Active')?.textContent;
+            if (active && active.trim().toLowerCase() === 'false') return;
+            const students = node.querySelector('Students')?.textContent?.trim();
+            const room = node.querySelector('Room')?.textContent?.trim();
+            if (students && room) {
+                if (!classRoomsMap[students]) classRoomsMap[students] = new Set();
+                classRoomsMap[students].add(room);
+            }
+        });
+
+        const multiHomeRoomNodes = xmlDoc.querySelectorAll('ConstraintStudentsSetHomeRooms');
+        multiHomeRoomNodes.forEach(node => {
+            const active = node.querySelector('Active')?.textContent;
+            if (active && active.trim().toLowerCase() === 'false') return;
+            const students = node.querySelector('Students')?.textContent?.trim();
+            if (students) {
+                const prefRooms = node.querySelectorAll('Preferred_Room');
+                prefRooms.forEach(pr => {
+                    const r = pr.textContent?.trim();
+                    if (r) {
+                        if (!classRoomsMap[students]) classRoomsMap[students] = new Set();
+                        classRoomsMap[students].add(r);
+                    }
+                });
+            }
+        });
+
+        const activityRoomsMap = {};
+        const actRoomNodes = xmlDoc.querySelectorAll('ConstraintActivityPreferredRoom');
+        actRoomNodes.forEach(node => {
+            const active = node.querySelector('Active')?.textContent;
+            if (active && active.trim().toLowerCase() === 'false') return;
+            const actId = node.querySelector('Activity_Id')?.textContent?.trim();
+            const room = node.querySelector('Room')?.textContent?.trim();
+            if (actId && room) {
+                activityRoomsMap[actId] = room;
+            }
+        });
+
+        const subjectRoomsMap = {};
+        const subjRoomNodes = xmlDoc.querySelectorAll('ConstraintSubjectPreferredRoom, ConstraintSubjectPreferredRooms');
+        subjRoomNodes.forEach(node => {
+            const active = node.querySelector('Active')?.textContent;
+            if (active && active.trim().toLowerCase() === 'false') return;
+            const subj = node.querySelector('Subject')?.textContent?.trim();
+            const room = node.querySelector('Room')?.textContent?.trim() || node.querySelector('Preferred_Room')?.textContent?.trim();
+            if (subj && room && !subjectRoomsMap[subj]) {
+                subjectRoomsMap[subj] = room;
+            }
+        });
+
+        const classesArr = Array.from(classesSet).sort();
+
+        // Determine main room for each class
+        // If 1 room assigned in spatial constraints -> main room
+        // If multiple rooms assigned or none found -> 'متنقل'
+        const classMainRoom = {};
+        classesArr.forEach(cls => {
+            const rooms = classRoomsMap[cls] ? Array.from(classRoomsMap[cls]) : [];
+            if (rooms.length === 1) {
+                classMainRoom[cls] = rooms[0];
+            } else {
+                classMainRoom[cls] = 'متنقل';
+            }
+        });
+
+        // Parse activities
+        const activitiesNodes = xmlDoc.querySelectorAll('Activity');
+        const activities = [];
+
+        activitiesNodes.forEach(node => {
+            const activeNode = node.querySelector('Active');
+            if (activeNode && activeNode.textContent.trim().toLowerCase() === 'false') return;
+
+            const id = node.querySelector('Id')?.textContent?.trim();
+            const teachers = Array.from(node.querySelectorAll('Teacher')).map(t => {
+                const tName = t.textContent?.trim();
+                return teacherNameMap[tName] || tName;
+            }).filter(Boolean);
+            const subject = node.querySelector('Subject')?.textContent?.trim() || '';
+            const studentsList = Array.from(node.querySelectorAll('Students')).map(s => s.textContent?.trim()).filter(Boolean);
+            const duration = parseInt(node.querySelector('Duration')?.textContent || '1');
+            const room = activityRoomsMap[id] || subjectRoomsMap[subject] || null;
+
+            activities.push({ id, teachers, subject, studentsList, duration, room });
+        });
+
+        // Parse time constraints
+        const timeNodes = xmlDoc.querySelectorAll('ConstraintActivityPreferredStartingTime');
+        const timeMap = {};
+        timeNodes.forEach(node => {
+            const actId = node.querySelector('Activity_Id')?.textContent?.trim();
+            const day = node.querySelector('Day')?.textContent?.trim();
+            const hour = node.querySelector('Hour')?.textContent?.trim();
+            const locked = node.querySelector('Permanently_Locked')?.textContent?.trim();
+            if (actId && day && hour) {
+                timeMap[actId] = { day, hour, locked: locked === 'true' };
+            }
+        });
+
+        // Build timetable: class -> day -> hourIndex -> { isSplit, wholeClass, subgroups }
+        const timetable = {};
+        classesArr.forEach(cls => { timetable[cls] = {}; });
+
+        activities.forEach(act => {
+            const time = timeMap[act.id];
+            if (!time) return;
+
+            const hourIndex = hoursList.indexOf(time.hour);
+            if (hourIndex === -1) return;
+
+            act.studentsList.forEach(stud => {
+                let baseClass = stud;
+                let isSubgroup = false;
+                let division = 1;
+
+                if (subgroupMap[stud]) {
+                    baseClass = subgroupMap[stud].baseClass;
+                    isSubgroup = true;
+                    division = subgroupMap[stud].division;
+                } else if (!classesSet.has(stud)) {
+                    // Try to match prefix
+                    for (const cls of classesArr) {
+                        if (stud.startsWith(cls)) {
+                            baseClass = cls;
+                            isSubgroup = true;
+                            const m = stud.match(/[فGg_](\d)/);
+                            division = m ? parseInt(m[1]) : 1;
+                            break;
+                        }
+                    }
+                }
+
+                if (!classesSet.has(baseClass)) return;
+
+                if (!timetable[baseClass]) timetable[baseClass] = {};
+                if (!timetable[baseClass][time.day]) timetable[baseClass][time.day] = {};
+
+                const actRoom = act.room || (classRoomsMap[stud] ? Array.from(classRoomsMap[stud])[0] : null);
+
+                for (let d = 0; d < act.duration; d++) {
+                    const hi = hourIndex + d;
+                    if (hi < hoursList.length) {
+                        if (!timetable[baseClass][time.day][hi]) {
+                            timetable[baseClass][time.day][hi] = {
+                                isSplit: false,
+                                wholeClass: null,
+                                subgroups: {}
+                            };
+                        }
+
+                        const slot = timetable[baseClass][time.day][hi];
+
+                        if (isSubgroup) {
+                            slot.isSplit = true;
+                            slot.subgroups[division] = {
+                                subject: act.subject,
+                                teachers: act.teachers,
+                                room: actRoom,
+                                subName: stud,
+                                division: division
+                            };
+                        } else {
+                            if (!slot.isSplit) {
+                                slot.wholeClass = {
+                                    subject: act.subject,
+                                    teachers: act.teachers,
+                                    room: actRoom
+                                };
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+        // Detect wings (year levels) from class names
+        const wings = new Set();
+        classesArr.forEach(cls => {
+            const match = cls.match(/^(\d+)/);
+            if (match) {
+                wings.add(match[1]);
+            }
+        });
+
+        // Detect morning/evening days
+        const dayGroups = {};
+        daysList.forEach(day => {
+            const longName = dayNamesMap[day] || day;
+            const searchStr = (longName + ' ' + day).toLowerCase();
+            let baseDayName = longName;
+            let period = 'unknown';
+
+            if (searchStr.includes('مساء') || searchStr.includes(' م') || searchStr.endsWith('م')) {
+                period = 'evening';
+                baseDayName = longName.replace(/\s*مساء\s*$/, '').replace(/\s*م\s*$/, '').trim();
+            } else if (searchStr.includes('صباح') || searchStr.includes(' ص') || searchStr.endsWith('ص')) {
+                period = 'morning';
+                baseDayName = longName.replace(/\s*صباح\s*$/, '').replace(/\s*ص\s*$/, '').trim();
+            }
+
+            if (!dayGroups[baseDayName]) {
+                dayGroups[baseDayName] = { morning: null, evening: null };
+            }
+
+            if (period === 'morning') {
+                dayGroups[baseDayName].morning = day;
+            } else if (period === 'evening') {
+                dayGroups[baseDayName].evening = day;
+            } else {
+                if (!dayGroups[baseDayName].morning) {
+                    dayGroups[baseDayName].morning = day;
+                } else {
+                    dayGroups[baseDayName].evening = day;
+                }
+            }
+        });
+
+        absenceParsedData = {
+            daysList,
+            hoursList,
+            dayNamesMap,
+            classesArr,
+            classMainRoom,
+            timetable,
+            wings: Array.from(wings).sort(),
+            dayGroups,
+            activities
+        };
+
+        hideAllCards();
+        statusCard.classList.add('hidden');
+        showAbsenceSheet();
+    }
+
+    function showAbsenceSheet() {
+        // Hide the main app container and show the absence sheet
+        if (appContainer) appContainer.classList.add('hidden');
+        absenceContainer.classList.remove('hidden');
+
+        const daySelect = document.getElementById('absence-day-select');
+        const wingSelect = document.getElementById('absence-wing-select');
+        const btnMorning = document.getElementById('btn-morning');
+        const btnEvening = document.getElementById('btn-evening');
+        const btnPortrait = document.getElementById('btn-portrait');
+        const btnLandscape = document.getElementById('btn-landscape');
+        const printBtn = document.getElementById('absence-print-btn');
+        const backBtn = document.getElementById('absence-back-btn');
+        const classSelectorBtn = document.getElementById('absence-class-selector-btn');
+        const classDropdown = document.getElementById('absence-class-dropdown');
+        const selectAllClassesCb = document.getElementById('class-select-all');
+        const classCheckboxesContainer = document.getElementById('class-checkboxes-container');
+
+        // Populate day select
+        daySelect.innerHTML = '';
+        const optAllBoth = document.createElement('option');
+        optAllBoth.value = 'all_both';
+        optAllBoth.textContent = 'كل الأيام (الصباحية + المسائية)';
+        daySelect.appendChild(optAllBoth);
+
+        const optAll = document.createElement('option');
+        optAll.value = 'all';
+        optAll.textContent = 'كل الأيام (الفترة الحالية)';
+        daySelect.appendChild(optAll);
+
+        let firstDay = null;
+        for (const [baseDayName, periods] of Object.entries(absenceParsedData.dayGroups)) {
+            const opt = document.createElement('option');
+            opt.value = baseDayName;
+            opt.textContent = baseDayName;
+            daySelect.appendChild(opt);
+            if (!firstDay) firstDay = baseDayName;
+        }
+
+        if (firstDay) {
+            daySelect.value = firstDay;
+        }
+
+        // Populate wing select
+        wingSelect.innerHTML = '<option value="all">كل الأجنحة</option>';
+        absenceParsedData.wings.forEach(wing => {
+            const opt = document.createElement('option');
+            opt.value = wing;
+            opt.textContent = `جناح السنة ${wing}`;
+            wingSelect.appendChild(opt);
+        });
+
+        // Initialize selected classes with all classes
+        absenceSelectedClasses = new Set(absenceParsedData.classesArr);
+
+        // Set initial period
+        absenceCurrentPeriod = 'morning';
+        btnMorning.classList.add('active');
+        btnEvening.classList.remove('active');
+
+        // Event listeners
+        const onRender = () => {
+            updateClassCheckboxesUI();
+            renderAbsenceSheet();
+        };
+
+        daySelect.onchange = onRender;
+        wingSelect.onchange = onRender;
+
+        btnMorning.onclick = () => {
+            absenceCurrentPeriod = 'morning';
+            btnMorning.classList.add('active');
+            btnEvening.classList.remove('active');
+            if (daySelect.value === 'all_both') {
+                daySelect.value = 'all';
+            }
+            onRender();
+        };
+
+        btnEvening.onclick = () => {
+            absenceCurrentPeriod = 'evening';
+            btnEvening.classList.add('active');
+            btnMorning.classList.remove('active');
+            if (daySelect.value === 'all_both') {
+                daySelect.value = 'all';
+            }
+            onRender();
+        };
+
+        function updatePrintOrientationStyle(orientation) {
+            let styleEl = document.getElementById('absence-print-orientation-style');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'absence-print-orientation-style';
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent = `@media print { @page { size: A4 ${orientation}; margin: 4mm; } }`;
+        }
+
+        function setAbsenceOrientation(orientation) {
+            absenceCurrentOrientation = orientation;
+            if (orientation === 'landscape') {
+                absenceContainer.classList.add('is-landscape');
+                if (btnLandscape) btnLandscape.classList.add('active');
+                if (btnPortrait) btnPortrait.classList.remove('active');
+            } else {
+                absenceContainer.classList.remove('is-landscape');
+                if (btnPortrait) btnPortrait.classList.add('active');
+                if (btnLandscape) btnLandscape.classList.remove('active');
+            }
+            updatePrintOrientationStyle(orientation);
+            renderAbsenceSheet();
+        }
+
+        if (btnPortrait) {
+            btnPortrait.onclick = () => setAbsenceOrientation('portrait');
+        }
+
+        if (btnLandscape) {
+            btnLandscape.onclick = () => setAbsenceOrientation('landscape');
+        }
+
+        // Dropdown toggle
+        classSelectorBtn.onclick = (e) => {
+            e.stopPropagation();
+            classDropdown.classList.toggle('hidden');
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!classDropdown.contains(e.target) && e.target !== classSelectorBtn) {
+                classDropdown.classList.add('hidden');
+            }
+        });
+
+        function updateClassCheckboxesUI() {
+            const selectedWing = wingSelect.value;
+            let availableClasses = absenceParsedData.classesArr;
+
+            if (selectedWing !== 'all') {
+                availableClasses = availableClasses.filter(cls => {
+                    const match = cls.match(/^(\d+)/);
+                    return match && match[1] === selectedWing;
+                });
+            }
+
+            // Rebuild checkboxes
+            classCheckboxesContainer.innerHTML = '';
+
+            // Check if all available classes are selected
+            let allSelected = true;
+
+            availableClasses.forEach(cls => {
+                const isChecked = absenceSelectedClasses.has(cls);
+                if (!isChecked) allSelected = false;
+
+                const label = document.createElement('label');
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = cls;
+                cb.checked = isChecked;
+
+                cb.onchange = () => {
+                    if (cb.checked) {
+                        absenceSelectedClasses.add(cls);
+                    } else {
+                        absenceSelectedClasses.delete(cls);
+                        selectAllClassesCb.checked = false;
+                    }
+                    renderAbsenceSheet();
+                };
+
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(cls));
+                classCheckboxesContainer.appendChild(label);
+            });
+
+            selectAllClassesCb.checked = allSelected;
+
+            selectAllClassesCb.onchange = () => {
+                const checked = selectAllClassesCb.checked;
+                availableClasses.forEach(cls => {
+                    if (checked) {
+                        absenceSelectedClasses.add(cls);
+                    } else {
+                        absenceSelectedClasses.delete(cls);
+                    }
+                });
+                // Update UI checkboxes
+                classCheckboxesContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    cb.checked = checked;
+                });
+                renderAbsenceSheet();
+            };
+        }
+
+        const printAllBtn = document.getElementById('absence-print-all-btn');
+
+        printBtn.onclick = () => {
+            window.print();
+        };
+
+        if (printAllBtn) {
+            printAllBtn.onclick = () => {
+                daySelect.value = 'all_both';
+                renderAbsenceSheet();
+                setTimeout(() => {
+                    window.print();
+                }, 150);
+            };
+        }
+
+        backBtn.onclick = () => {
+            absenceContainer.classList.add('hidden');
+            if (appContainer) appContainer.classList.remove('hidden');
+        };
+
+        // Initial setup and render
+        setAbsenceOrientation(absenceCurrentOrientation || 'portrait');
+        updateClassCheckboxesUI();
+        renderAbsenceSheet();
+    }
+
+    function formatSubjectForDisplay(subject) {
+        if (!subject) return '';
+        const map = {
+            'التربية البدنية والرياضية': 'ت.بدنية',
+            'التربية البدنية': 'ت.بدنية',
+            'التربية الاسلامية': 'ت.إسلامية',
+            'التربية الإسلامية': 'ت.إسلامية',
+            'التربية المدنية': 'ت.مدنية',
+            'العلوم الفيزيائية والتكنولوجيا': 'فيزياء',
+            'العلوم الفيزيائية': 'فيزياء',
+            'علوم الطبيعة والحياة': 'علوم',
+            'اللغة العربية': 'ل.عربية',
+            'اللغة الفرنسية': 'ل.فرنسية',
+            'اللغة الإنجليزية': 'ل.إنجليزية',
+            'اللغة الانجليزية': 'ل.إنجليزية',
+            'التربية الموسيقية': 'موسيقى',
+            'التربية الفنية': 'ت.فنية',
+            'التربية التشكيلية': 'ت.فنية',
+            'التاريخ والجغرافيا': 'ت/جغرافيا',
+            'تاريخ وجغرافيا': 'ت/جغرافيا',
+            'الإعلام الآلي': 'إ.آلي',
+            'الاعلام الالي': 'إ.آلي',
+            'اعلام آلي': 'إ.آلي',
+            'الرياضيات': 'رياضيات'
+        };
+        const trimmed = subject.trim();
+        return map[trimmed] || trimmed;
+    }
+
+    function formatTeacherCompact(teachers) {
+        if (!teachers || teachers.length === 0) return '';
+        return teachers.map(t => {
+            const trimmed = t.trim();
+            const parts = trimmed.split(/\s+/);
+            if (parts.length === 1) return parts[0];
+            if (parts.length === 2) {
+                return `${parts[0]} ${parts[1][0]}.`;
+            }
+            if (parts.length >= 3) {
+                if (['بن', 'أبو', 'ابو', 'عبد', 'ولد', 'ايت', 'آيت', 'بل'].includes(parts[0])) {
+                    return `${parts[0]} ${parts[1]} ${parts[2][0]}.`;
+                }
+                return `${parts[0]} ${parts[1][0]}.`;
+            }
+            return trimmed;
+        }).join('/');
+    }
+
+    function renderSingleDayA4Sheet(dayName, fetDayKey, period, schoolName, classesWithLessons, data, timeSlots, numSlots, hourIndices, numTeacherSigCols, periodLabel, periodLabelOpposite) {
+        let html = `<div class="a4-sheet ${absenceCurrentOrientation === 'landscape' ? 'is-landscape' : ''}">`;
+
+        // Header section (Top)
+        html += `<div class="absence-header">
+            <div class="absence-header-right">
+                <div class="school-name">${schoolName}</div>
+                <div class="day-title">تغيبات يوم <span class="day-name">${dayName}</span> ................ <span class="period-label">${periodLabel}</span></div>
+            </div>
+            <div class="absence-header-left">
+                <div class="absence-top-note">
+                    كل تلميذ غاب في اليوم السابق و لم يشطب اسمه مسجل بالاحمر يجب طرده من القسم في الحين ليقدم الى السيد مستشار
+                    التربية و ذلك ان لم يكن حاملا رخصة للدخول مؤرخة في اليوم نفسه
+                </div>
+            </div>
+        </div>`;
+
+        // Table
+        html += `<table class="absence-table">`;
+        html += `<colgroup>`;
+        html += `<col class="col-class">`;
+        html += `<col class="col-prev-absence">`;
+        for (let i = 0; i < numSlots; i++) {
+            html += `<col class="col-time">`;
+        }
+        for (let i = 0; i < numTeacherSigCols; i++) {
+            html += `<col class="col-teacher-sig">`;
+        }
+        if (period === 'evening') {
+            html += `<col class="col-admin">`;
+        }
+        html += `</colgroup>`;
+
+        // Main header row
+        html += `<thead>`;
+        html += `<tr>`;
+
+        // Note spanning columns 1 and 2
+        html += `<th colspan="2" class="col-prev-absence-note" style="font-size: 8pt; font-weight: 700; line-height: 1.3; padding: 2mm;">
+            التلاميذ الغائبون قبل اليوم لا يؤذن لهم بالدخول بدون رخصة يسلمها لهم السيد مستشار التربية
+        </th>`;
+
+        // Student names header spanning time slots
+        html += `<th colspan="${numSlots}" style="font-size: 16pt; font-weight: 900;">أسـمـاء التــلامـيــذ الغــائبـــيــن</th>`;
+
+        // Teacher signatures header
+        html += `<th colspan="${numTeacherSigCols + (period === 'evening' ? 1 : 0)}" style="font-size: 16pt; font-weight: 900;">توقيع الاساتذة</th>`;
+
+        html += `</tr>`;
+
+        // Second header row
+        html += `<tr>`;
+
+        // Class column header
+        html += `<th class="col-class" style="font-size: 10pt; font-weight: 700;">الأقسام</th>`;
+
+        // Previous period absences title
+        html += `<th class="col-prev-absence" style="font-size: 9pt; font-weight: 700;">${period === 'morning' ? 'الغيابات في اليوم السابق' : 'الغيابات في الفترة ' + periodLabelOpposite}</th>`;
+
+        // Time slot headers
+        for (let i = 0; i < numSlots; i++) {
+            html += `<th class="col-time">${timeSlots[i]}</th>`;
+        }
+
+        // Teacher signature sub-headers (ح1, ح2, etc.)
+        for (let i = 0; i < numTeacherSigCols; i++) {
+            html += `<th class="col-teacher-sig" style="writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg); font-size: 10pt; font-weight: 700;">حصة${i + 1}</th>`;
+        }
+
+        // Admin check column for evening
+        if (period === 'evening') {
+            html += `<th class="col-admin">التحقيق الإداري</th>`;
+        }
+
+        html += `</tr>`;
+        html += `</thead>`;
+
+        // Body rows - one row per class
+        html += `<tbody>`;
+
+        if (classesWithLessons.length === 0) {
+            html += `<tr><td colspan="${2 + numSlots + numTeacherSigCols + (period === 'evening' ? 1 : 0)}" style="padding: 20mm; color: #999; font-size: 12pt;">لا توجد أقسام في هذه الفترة</td></tr>`;
+        }
+
+        classesWithLessons.forEach(cls => {
+            html += `<tr class="class-row">`;
+
+            // Class name & main room badge (below class name)
+            const mainRoom = data.classMainRoom[cls] || 'متنقل';
+            html += `<td class="class-cell">
+                <div class="class-cell-inner">
+                    <span class="class-name">${cls}</span>
+                    <span class="class-room-badge ${mainRoom === 'متنقل' ? 'class-room-mobile' : ''}">${mainRoom}</span>
+                </div>
+            </td>`;
+
+            // Previous period absences (empty - for manual fill)
+            html += `<td class="empty-cell"></td>`;
+
+            // Time slot cells (student names) - Always leave empty for writing
+            for (let slotIdx = 0; slotIdx < numSlots; slotIdx++) {
+                html += `<td class="empty-cell"></td>`;
+            }
+
+            // Teacher signature cells
+            for (let i = 0; i < numTeacherSigCols; i++) {
+                const hourIdx = hourIndices[i] !== undefined ? hourIndices[i] : i;
+                const slot = data.timetable[cls]?.[fetDayKey]?.[hourIdx];
+
+                if (!slot || (!slot.wholeClass && Object.keys(slot.subgroups).length === 0)) {
+                    html += `<td class="shaded-cell"></td>`;
+                } else if (slot.isSplit || Object.keys(slot.subgroups).length > 0) {
+                    // Diagonally split cell (Tafweej)
+                    const subKeys = Object.keys(slot.subgroups).map(k => parseInt(k)).sort((a, b) => a - b);
+                    const g1 = slot.subgroups[1] || (subKeys[0] ? slot.subgroups[subKeys[0]] : null);
+                    const g2 = slot.subgroups[2] || (subKeys.length > 1 ? slot.subgroups[subKeys[1]] : null);
+
+                    const g1RoomTag = (g1 && g1.room && (g1.room !== mainRoom || mainRoom === 'متنقل'))
+                        ? `<span class="subgroup-room">${g1.room}</span>` : '';
+                    const g2RoomTag = (g2 && g2.room && (g2.room !== mainRoom || mainRoom === 'متنقل'))
+                        ? `<span class="subgroup-room">${g2.room}</span>` : '';
+
+                    const g1Teacher = g1 ? formatTeacherCompact(g1.teachers) : '';
+                    const g2Teacher = g2 ? formatTeacherCompact(g2.teachers) : '';
+
+                    html += `<td class="subject-teacher-cell split-lesson-cell">
+                        <div class="split-diagonal-container">
+                            <svg class="diagonal-divider-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                <line x1="100" y1="100" x2="0" y2="0" stroke="#000" stroke-width="1.3" vector-effect="non-scaling-stroke" />
+                            </svg>
+                            <div class="subgroup-part part-top">
+                                <div class="subgroup-subject" title="${g1 ? g1.subject : ''}">${g1 ? formatSubjectForDisplay(g1.subject) : '—'}</div>
+                                <div class="subgroup-details">
+                                    <span class="subgroup-teacher">${g1Teacher}</span>
+                                    ${g1RoomTag}
+                                </div>
+                            </div>
+                            <div class="subgroup-part part-bottom">
+                                <div class="subgroup-subject" title="${g2 ? g2.subject : ''}">${g2 ? formatSubjectForDisplay(g2.subject) : '—'}</div>
+                                <div class="subgroup-details">
+                                    <span class="subgroup-teacher">${g2Teacher}</span>
+                                    ${g2RoomTag}
+                                </div>
+                            </div>
+                        </div>
+                    </td>`;
+                } else {
+                    // Regular single whole-class lesson
+                    const lesson = slot.wholeClass;
+                    const diffRoom = (lesson.room && (lesson.room !== mainRoom || mainRoom === 'متنقل')) ? lesson.room : null;
+                    const roomBadge = diffRoom ? `<span class="room-tag">${diffRoom}</span>` : '';
+
+                    html += `<td class="subject-teacher-cell" style="font-size: 6.5pt; vertical-align: top;">
+                        <div class="teacher-sig-box">
+                            <div>
+                                <span class="subject-name" title="${lesson.subject}">${formatSubjectForDisplay(lesson.subject)}</span>
+                                <span class="teacher-name">${lesson.teachers.join('/')}</span>
+                                ${roomBadge}
+                            </div>
+                            <div class="sig-space"></div>
+                        </div>
+                    </td>`;
+                }
+            }
+
+            // Admin check column for evening
+            if (period === 'evening') {
+                html += `<td class="empty-cell"></td>`;
+            }
+
+            html += `</tr>`;
+        });
+
+        html += `</tbody>`;
+        html += `</table>`;
+
+        // Footer - signature line (for evening only as per template)
+        if (period === 'evening') {
+            html += `<div class="absence-footer">إمضاء المكلف بتمريرها ..........................</div>`;
+        }
+
+        html += `</div>`; // End a4-sheet
+        return html;
+    }
+
+    function renderAbsenceSheet() {
+        const content = document.getElementById('absence-sheet-content');
+        const schoolName = document.getElementById('school-name-input').value;
+        const selectedDay = document.getElementById('absence-day-select').value;
+        const selectedWing = document.getElementById('absence-wing-select').value;
+        const period = absenceCurrentPeriod;
+        const data = absenceParsedData;
+
+        if (!data) return;
+
+        // Filter classes by wing and selection
+        let baseFilteredClasses = data.classesArr;
+        if (selectedWing !== 'all') {
+            baseFilteredClasses = data.classesArr.filter(cls => {
+                const match = cls.match(/^(\d+)/);
+                return match && match[1] === selectedWing;
+            });
+        }
+        baseFilteredClasses = baseFilteredClasses.filter(cls => absenceSelectedClasses.has(cls));
+
+        function generatePeriodHtml(periodName, targetDay = 'all') {
+            const totalHours = data.hoursList.length;
+            const morningTimes = ['8:00-9:00', '9:00-10:00', '10:00-11:00', '11:00-12:00'];
+            const eveningTimes = ['13:30-14:30', '14:30-15:30', '15:30-16:30'];
+            const timeSlots = periodName === 'morning' ? morningTimes : eveningTimes;
+            const numSlots = timeSlots.length;
+            const hourIndices = Array.from({ length: Math.min(numSlots, totalHours) }, (_, i) => i);
+            const numTeacherSigCols = periodName === 'morning' ? 4 : 3;
+            const periodLabel = periodName === 'morning' ? 'الفترة الصباحية' : 'الفترة المسائية';
+            const periodLabelOpposite = periodName === 'morning' ? 'الصباحية' : 'المسائية';
+
+            let html = '';
+            const dayEntries = (targetDay === 'all' || targetDay === 'all_both')
+                ? Object.entries(data.dayGroups)
+                : [[targetDay, data.dayGroups[targetDay]]].filter(([_, dg]) => !!dg);
+
+            for (const [dayName, dayGroup] of dayEntries) {
+                const fetDayKey = periodName === 'morning' ? dayGroup.morning : dayGroup.evening;
+                if (!fetDayKey) continue;
+
+                const classesWithLessons = baseFilteredClasses.filter(cls => {
+                    const dayData = data.timetable[cls]?.[fetDayKey];
+                    return dayData && Object.keys(dayData).length > 0;
+                });
+
+                classesWithLessons.sort((a, b) => a.localeCompare(b, 'ar', { numeric: true }));
+                if (classesWithLessons.length === 0) continue;
+
+                html += renderSingleDayA4Sheet(
+                    dayName, fetDayKey, periodName, schoolName, classesWithLessons,
+                    data, timeSlots, numSlots, hourIndices, numTeacherSigCols,
+                    periodLabel, periodLabelOpposite
+                );
+            }
+            return html;
+        }
+
+        if (selectedDay === 'all_both') {
+            // Render all days Morning, directly followed by all days Evening
+            const morningHtml = generatePeriodHtml('morning', 'all');
+            const eveningHtml = generatePeriodHtml('evening', 'all');
+            const combinedHtml = morningHtml + eveningHtml;
+            content.innerHTML = combinedHtml || '<p style="text-align:center; padding: 40px; color: #666;">لا توجد بيانات للأسبوع</p>';
+        } else if (selectedDay === 'all') {
+            const html = generatePeriodHtml(period, 'all');
+            content.innerHTML = html || `<p style="text-align:center; padding: 40px; color: #666;">لا توجد بيانات لأي يوم في ${period === 'morning' ? 'الفترة الصباحية' : 'الفترة المسائية'}</p>`;
+        } else {
+            const html = generatePeriodHtml(period, selectedDay);
+            content.innerHTML = html || '<p style="text-align:center; padding: 40px; color: #666;">لا توجد بيانات لهذا اليوم في هذه الفترة</p>';
+        }
+    }
+
+    // Listen for school name input changes to re-render
+    const schoolNameInput = document.getElementById('school-name-input');
+    if (schoolNameInput) {
+        schoolNameInput.addEventListener('input', () => {
+            if (absenceParsedData) renderAbsenceSheet();
+        });
     }
 });

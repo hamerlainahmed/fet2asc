@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>محول جداول FET إلى aSc</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.3">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
@@ -17,17 +17,62 @@
             <p>قم بتحويل ملفات FET إلى ملفات XML متوافقة مع برنامج aSc بخطوة واحدة</p>
             <p style="margin-top: 10px; font-weight: bold; font-size: 14px; color: var(--primary);">مطور البرنامج: أحمد
                 حمرالعين<br><span id="app-version"
-                    style="font-size: 12px; color: var(--text-muted); font-weight: normal;">الإصدار 1.4.0</span></p>
+                    style="font-size: 12px; color: var(--text-muted); font-weight: normal;">الإصدار 1.6.6</span></p>
 
             <div class="mode-selector">
-                <input type="radio" id="mode-fet2asc" name="app-mode" value="fet2asc" checked>
-                <label for="mode-fet2asc">من FET إلى aSc</label>
-                <input type="radio" id="mode-highest2asc" name="app-mode" value="highest2asc">
-                <label for="mode-highest2asc">من مجلد Highest إلى aSc <span class="badge new">جديد</span></label>
-                <input type="radio" id="mode-asc2fet" name="app-mode" value="asc2fet">
-                <label for="mode-asc2fet">من aSc إلى FET </label>
-                <input type="radio" id="mode-12temps2asc" name="app-mode" value="12temps2asc">
-                <label for="mode-12temps2asc">من 12temps إلى aSc <span class="badge new">جديد</span></label>
+                <label class="mode-card">
+                    <input type="radio" id="mode-fet2asc" name="app-mode" value="fet2asc" checked>
+                    <div class="mode-card-content">
+                        <div class="mode-icon">🔄</div>
+                        <div class="mode-text">
+                            <span class="mode-title">FET إلى aSc</span>
+                            <span class="mode-desc">تحويل ملف الجدول الأساسي</span>
+                        </div>
+                    </div>
+                </label>
+                <label class="mode-card">
+                    <input type="radio" id="mode-highest2asc" name="app-mode" value="highest2asc">
+                    <div class="mode-card-content">
+                        <div class="mode-icon">📁</div>
+                        <div class="mode-text">
+                            <span class="mode-title">مجلد Highest</span>
+                            <span class="mode-desc">تحويل مجلدات XML</span>
+                        </div>
+                        <span class="badge new">جديد</span>
+                    </div>
+                </label>
+                <label class="mode-card">
+                    <input type="radio" id="mode-asc2fet" name="app-mode" value="asc2fet">
+                    <div class="mode-card-content">
+                        <div class="mode-icon">⏪</div>
+                        <div class="mode-text">
+                            <span class="mode-title">aSc إلى FET</span>
+                            <span class="mode-desc">استرجاع جدول aSc</span>
+                        </div>
+                    </div>
+                </label>
+                <label class="mode-card">
+                    <input type="radio" id="mode-12temps2asc" name="app-mode" value="12temps2asc">
+                    <div class="mode-card-content">
+                        <div class="mode-icon">📊</div>
+                        <div class="mode-text">
+                            <span class="mode-title">12temps</span>
+                            <span class="mode-desc">تحويل ملفات Excel</span>
+                        </div>
+                        <span class="badge new">جديد</span>
+                    </div>
+                </label>
+                <label class="mode-card">
+                    <input type="radio" id="mode-absence" name="app-mode" value="absence">
+                    <div class="mode-card-content">
+                        <div class="mode-icon">📝</div>
+                        <div class="mode-text">
+                            <span class="mode-title">ورقة الغيابات</span>
+                            <span class="mode-desc">استخراج قوائم A4</span>
+                        </div>
+                        <span class="badge new">جديد</span>
+                    </div>
+                </label>
             </div>
         </header>
 
@@ -48,6 +93,7 @@
                     اختر ملف FET
                 </label>
                 <input type="file" id="file-input" accept=".fet">
+                <p id="drop-zone-note" class="hidden" style="color: #0056b3; font-size: 13px; margin-top: 15px; background: #e7f3fe; padding: 8px; border-radius: 4px; border: 1px solid #b6d4fe;"></p>
             </div>
 
             <!-- منطقة رفع ملفات Highest (متعددة) -->
@@ -178,9 +224,53 @@
         </main>
     </div>
 
+    <!-- Absence Sheet Full-Page Container -->
+    <div id="absence-sheet-container" class="absence-sheet-container hidden">
+        <div class="absence-controls">
+            <div class="absence-controls-right">
+                <label>اسم المؤسسة:
+                    <input type="text" id="school-name-input" value="متوسطة .................." class="absence-input" />
+                </label>
+                <label>اليوم:
+                    <select id="absence-day-select" class="absence-select"></select>
+                </label>
+                <label>الجناح:
+                    <select id="absence-wing-select" class="absence-select">
+                        <option value="all">كل الأجنحة</option>
+                    </select>
+                </label>
+                <div class="class-selector-wrapper">
+                    <button id="absence-class-selector-btn" class="absence-back-btn">تحديد الأقسام ▼</button>
+                    <div id="absence-class-dropdown" class="class-dropdown hidden">
+                        <div class="class-dropdown-header">
+                            <label><input type="checkbox" id="class-select-all" checked> تحديد الكل</label>
+                        </div>
+                        <div id="class-checkboxes-container" class="class-checkboxes">
+                            <!-- Checkboxes will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="absence-controls-left">
+                <div class="absence-period-tabs">
+                    <button id="btn-morning" class="absence-tab active" data-period="morning">الفترة الصباحية</button>
+                    <button id="btn-evening" class="absence-tab" data-period="evening">الفترة المسائية</button>
+                </div>
+                <div class="absence-period-tabs" id="absence-orientation-tabs">
+                    <button type="button" id="btn-portrait" class="absence-tab active" data-orientation="portrait" title="ورقة عمودية (Portrait)">📄 عمودي</button>
+                    <button type="button" id="btn-landscape" class="absence-tab" data-orientation="landscape" title="ورقة أفقية (Landscape)">🖼️ أفقي</button>
+                </div>
+                <button id="absence-print-btn" class="absence-print-btn" title="طباعة اليوم المحدد فقط">🖨️ طباعة اليوم</button>
+                <button id="absence-print-all-btn" class="absence-print-btn btn-print-all" title="طباعة كافة أيام الأسبوع دفعة واحدة">📑 طباعة كل الأيام</button>
+                <button id="absence-back-btn" class="absence-back-btn">↩ رجوع</button>
+            </div>
+        </div>
+        <div id="absence-sheet-content" class="absence-sheet-content">
+            <!-- The A4 printable sheet will be rendered here -->
+        </div>
+    </div>
 
-
-    <script src="script.js"></script>
+    <script src="script.js?v=2.3"></script>
 </body>
 
 </html>
